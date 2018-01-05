@@ -4,32 +4,40 @@
 # 
 # 
 # 
+# 
+
+
+VERSION="1.0"
+AUTHOR="Woody Huang"
+AUTHOR_EMAIL="woodyhuang1@gmail.com"
+COMMAND_NAME="woodyssl"
+
+ROOT_DIR="${HOME}"/."${COMMAND_NAME}"
+CA_DIR="${ROOT_DIR}"/ca
+CERT_DIR="${ROOT_DIR}"/cert
+INSTALL_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+TEMPLATE_DIR="${INSTALL_DIR}"/templates
 
 function show_help_info {
-	echo -e "woodyssl: SSL certificate manager
-usage: woodyssl [OPTIONS]
+	echo -e "${COMMAND_NAME}: SSL certificate manager
+usage: ${COMMAND_NAME} [OPTIONS]
        -h --help      show help informations
        -d --domain    domain name to manage
        -c --create    create if the domain given by -d does not exists
           --clean     clean everything
        -f --forced.   
        -r --rm        remove the domain certificate
-       -l --list      list all domains maintained by this tool"
+       -l --list      list all domains maintained by this tool
+       -v --version   show version"
 	exit
 }
-
-ROOT_DIR="${HOME}"/.woodyssl
-CA_DIR="${ROOT_DIR}"/ca
-CERT_DIR="${ROOT_DIR}"/cert
-
-INSTALL_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
-TEMPLATE_DIR="${INSTALL_DIR}"/templates
 
 DOMAIN_NAME=
 DOMAIN_OPERATION=
 CLEAN_ALL=
 FORCE_CREATE=
 
+# extract param
 while [ $# -gt 0 ]
 do
 	key="$1"
@@ -92,9 +100,15 @@ do
 		shift
 		;;
 
+		-v|--version)
+		echo "${COMMAND_NAME} ${VERSION}"
+		echo "Created by ${AUTHOR} (${AUTHOR_EMAIL})"
+		exit
+		;;
+
 		*)
 			echo "Unrecognized command"
-			echo "Use woodyssl -h to show help informations"
+			echo "Use ${COMMAND_NAME} -h to show help informations"
 			echo ""
 			show_help_info
 			exit
@@ -103,12 +117,14 @@ do
 done
 
 if [ !  -e "${ROOT_DIR}" ]; then
+	echo "Create ssl configs container at ${ROOT_DIR}."
 	mkdir "${ROOT_DIR}"
 fi
 cd "${ROOT_DIR}"
 
 if [ "$CLEAN_ALL" == "true" ]; then
-	rm -rf ./
+	cd ..
+	rm -rf "${ROOT_DIR}"
 	exit
 fi
 
@@ -120,16 +136,19 @@ if [ -z "${DOMAIN_NAME}" ]; then
 fi
 
 if [ ! -d "${CERT_DIR}" ]; then
+	echo "Create certificate diretory at ${CERT_DIR}."
 	mkdir "${CERT_DIR}"
 fi
 cd "${CERT_DIR}"
+
 if [ "${DOMAIN_OPERATION}" == "rm" ]; then
 	if [ -d "./${DOMAIN_NAME}" ]; then
 		rm -rf ./"${DOMAIN_NAME}"
+		echo "Certificate of ${DOMAIN_NAME} is removed"
 	else
 		echo "Certificate for ${DOMAIN_NAME} not found"
-		exit
 	fi
+	exit
 
 elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 
@@ -140,8 +159,7 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 	cd "${CA_DIR}"
 	# Make sure CA is generated
 	if [ ! -f "./root-ca.key" ]; then
-		echo "Root certificate not found, creating a new one
-		"
+		echo "Root certificate not found, create a new one."
 		# generate CA private key
 		openssl genrsa -out "root-ca.key" 4096
 
@@ -165,6 +183,13 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 	fi
 	if [ ! -d "./${DOMAIN_NAME}" ]; then
 		mkdir "./${DOMAIN_NAME}"
+		echo ""
+		echo "Create certificate for ${DOMAIN_NAME} using root ca located at ${CA_DIR}"
+		echo ""
+	else
+		echo ""
+		echo "Overriding exisiting certificate of ${DOMAIN_NAME}"
+		echo ""
 	fi
 	cd "./${DOMAIN_NAME}"
 
