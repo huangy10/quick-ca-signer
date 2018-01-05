@@ -1,0 +1,200 @@
+#!/bin/bash
+# Main entry for the program
+# 
+# 
+# 
+# 
+
+function show_help_info {
+	echo -e "woodyssl: SSL certificate manager
+usage: woodyssl [OPTIONS]
+       -h --help      show help informations
+       -d --domain    domain name to manage
+       -c --create    create if the domain given by -d does not exists
+          --clean     clean everything
+       -f --forced.   
+       -r --rm        remove the domain certificate
+       -l --list      list all domains maintained by this tool"
+	exit
+}
+
+ROOT_DIR="${HOME}"/.woodyssl
+CA_DIR="${ROOT_DIR}"/ca
+CERT_DIR="${ROOT_DIR}"/cert
+
+INSTALL_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+TEMPLATE_DIR="${INSTALL_DIR}"/templates
+
+DOMAIN_NAME=
+DOMAIN_OPERATION=
+CLEAN_ALL=
+FORCE_CREATE=
+
+while [ $# -gt 0 ]
+do
+	key="$1"
+
+	case $key in
+
+		-h|--help)
+		show_help_info
+		shift
+		exit
+		;;
+
+		-d|--domain)
+		DOMAIN_NAME="$2"
+		shift
+		shift
+		;;
+
+		-c|--create)
+		if [ -z "${DOMAIN_OPERATION}" ]; then
+			DOMAIN_OPERATION="create"
+		else
+			echo "conflict flag"
+			echo ""
+			show_help_info
+			exit
+		fi
+		shift
+		;;
+
+		-r|--rm)
+		if [ -z "${DOMAIN_OPERATION}" ]; then
+			DOMAIN_OPERATION="rm"
+		else
+			echo "conflict flag"
+			echo ""
+			show_help_info
+			exit
+		fi
+		shift
+		;;
+
+		--clean)
+		CLEAN_ALL=true
+		shift
+		;;
+
+		-l|--list)
+		if [ -d "${CERT_DIR}" ]; then
+			cd "${CERT_DIR}"
+			ls -1 */
+		else
+			echo "No certificate found"
+		fi
+		exit
+		;;
+
+		-f|--forced)
+		FORCE_CREATE=true
+		shift
+		;;
+
+		*)
+			echo "Unrecognized command"
+			echo "Use woodyssl -h to show help informations"
+			echo ""
+			show_help_info
+			exit
+		;;
+	esac
+done
+
+if [ !  -e "${ROOT_DIR}" ]; then
+	mkdir "${ROOT_DIR}"
+fi
+cd "${ROOT_DIR}"
+
+if [ "$CLEAN_ALL" == "true" ]; then
+	rm -rf ./
+	exit
+fi
+
+if [ -z "${DOMAIN_NAME}" ]; then
+	echo "Domain name not set"
+	echo ""
+	show_help_info
+	exit
+fi
+
+if [ ! -d "${CERT_DIR}" ]; then
+	mkdir "${CERT_DIR}"
+fi
+cd "${CERT_DIR}"
+if [ "${DOMAIN_OPERATION}" == "rm" ]; then
+	if [ -d "./${DOMAIN_NAME}" ]; then
+		rm -rf ./"${DOMAIN_NAME}"
+	else
+		echo "Certificate for ${DOMAIN_NAME} not found"
+		exit
+	fi
+
+elif [ "${DOMAIN_OPERATION}" == "create" ]; then
+
+	# make sure CA is created
+	if [ ! -d "${CA_DIR}" ]; then
+		mkdir "${CA_DIR}"
+	fi
+	cd "${CA_DIR}"
+	# Make sure CA is generated
+	if [ ! -f "./root-ca.key" ]; then
+		echo "Root certificate not found, creating a new one
+		"
+		# generate CA private key
+		openssl genrsa -out "root-ca.key" 4096
+
+		# use the key to generate ca request file
+		openssl req \
+	          -new -key "root-ca.key" \
+	          -out "root-ca.csr" -sha256 \
+	          -subj '/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion SFIG'
+
+	    # generate the ca root certificate
+	    openssl x509 -req  -days 3650  -in "root-ca.csr" \
+	               -signkey "root-ca.key" -sha256 -out "root-ca.crt" \
+	               -extfile "${TEMPLATE_DIR}/root-ca.cnf" -extensions \
+	               root_ca
+	fi
+
+	cd "${CERT_DIR}"
+	if [ -z "${FORCE_CREATE}" ] && [ -d "./${DOMAIN_NAME}" ]; then
+		echo "Certificate for ${DOMAIN_NAME} already exists"
+		exit
+	fi
+	if [ ! -d "./${DOMAIN_NAME}" ]; then
+		mkdir "./${DOMAIN_NAME}"
+	fi
+	cd "./${DOMAIN_NAME}"
+
+	# generate key 
+	openssl genrsa -out "${DOMAIN_NAME}.key" 4096
+
+	# generate csr file
+	openssl req -new -key "${DOMAIN_NAME}.key" -out "site.csr" -sha256 \
+          -subj '/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=${DOMAIN_NAME}'
+
+    SITE_CNF_FILE_TEMPLATE=$(cat "${TEMPLATE_DIR}"/site.cnf)
+    SITE_CNF_FILE_CONTENT=${SITE_CNF_FILE_TEMPLATE/__DOMAIN_NAME__/${DOMAIN_NAME}}
+    echo "${SITE_CNF_FILE_CONTENT}" > ./site.cnf
+
+    echo "
+content of cnf file used:
+
+${SITE_CNF_FILE_CONTENT}
+    
+    "
+
+    openssl x509 -req -days 750 -in "site.csr" -sha256 \
+   	    -CA "${CA_DIR}/root-ca.crt" -CAkey "${CA_DIR}/root-ca.key"  -CAcreateserial \
+        -out "${DOMAIN_NAME}.crt" -extfile "site.cnf" -extensions server
+
+  	echo "Success creating certificate for ${DOMAIN_NAME}"
+  	echo "The certificate is stored is $(pwd)"
+fi
+		
+
+
+
+
