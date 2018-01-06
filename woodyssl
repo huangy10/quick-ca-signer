@@ -196,7 +196,7 @@ if [ "${DOMAIN_OPERATION}" == "rm" ]; then
 elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 
 	# make sure CA is created
-	if [ ! -d "${CA_DIR}" ]; then
+	if [ ! "${EXTERNAL_CA}" == true ] && [ ! -d "${CA_DIR}" ]; then
 		mkdir "${CA_DIR}"
 	fi
 	cd "${CA_DIR}"
