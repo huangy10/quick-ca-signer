@@ -18,6 +18,16 @@ do
 		shift
 		;;
 
+		--uninstall)
+		if [ -L "/bin/woodyssl" ]; then
+			rm /bin/woodyssl
+		fi
+		if [ -d /var/woodyssl ]; then
+			rm -rf /var/woodyssl
+		fi
+		exit
+		;;
+
 		*)
 		;;
 	esac
@@ -26,6 +36,9 @@ done
 command -v openssl > /dev/null || { echo "openssl is not installed. Install it with 'sudo apt-get install openssl' first"; exit; }
 command -v git > /dev/null || { echo "wget is not installed. Install it with sudo 'apt-get install git' first"; exit; }
 
+if [ -d /var/woodyssl ]; then
+	rm -rf /var/woodyssl
+fi
 mkdir /var/woodyssl
 
 if [ -z "${INSTALL_FROM_LOCAL}" ]; then
@@ -38,4 +51,7 @@ fi
 cd /var/woodyssl
 
 rm -rf ./README.md ./.git ./.gitignore
+if [ -L "/bin/woodyssl" ]; then
+	rm /bin/woodyssl
+fi
 ln -s /var/woodyssl/woodyssl /bin/woodyssl

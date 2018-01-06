@@ -16,6 +16,11 @@ ROOT_DIR="${HOME}"/."${COMMAND_NAME}"
 CA_DIR="${ROOT_DIR}"/ca
 CERT_DIR="${ROOT_DIR}"/cert
 INSTALL_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+
+if [ -L "$INSTALL_DIR"/woodyssl ]; then
+	COMMAND_SOURCE_LOCATION=$(readlink "${INSTALL_DIR}/woodyssl")
+	INSTALL_DIR=$(dirname "${COMMAND_SOURCE_LOCATION}")
+fi 
 TEMPLATE_DIR="${INSTALL_DIR}"/templates
 
 function show_help_info {
