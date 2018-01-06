@@ -24,7 +24,7 @@ fi
 TEMPLATE_DIR="${INSTALL_DIR}"/templates
 
 function show_help_info {
-	echo -e "${COMMAND_NAME}: SSL certificate manager
+	echo -e '${COMMAND_NAME}: SSL certificate manager
 usage: ${COMMAND_NAME} [OPTIONS]
        -h --help      show help informations
        -d --domain    domain name to manage
@@ -38,7 +38,9 @@ usage: ${COMMAND_NAME} [OPTIONS]
        -f --forced.   used with -c, create the certificate even if the domain already exists
        -r --rm        remove the domain certificate
        -l --list      list all domains maintained by this tool
-       -v --version   show version"
+          --subj      set subj info for csr file. In following format: "/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion Club"
+                      this settings will be saved and applied in the following commands.
+       -v --version   show version'
 	exit
 }
 
@@ -60,6 +62,14 @@ EXTERNAL_CA=
 DEFAULT_CA_DIR="${CA_DIR}"
 EXPORT_DIR=
 REQURE_DOMAIN_NAME=
+
+DEFAULT_SUBJ="/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion Club"
+if [ -f "${TEMPLATE_DIR/subj}" ]; then
+	OPENSSL_SUBJ=$(cat ${TEMPLATE_DIR}/subj)
+else
+	OPENSSL_SUBJ="${DEFAULT_SUBJ}"
+fi
+SET_USER_SUBJ=
 # extract param
 while [ $# -gt 0 ]
 do
@@ -107,6 +117,17 @@ do
 
 		-f|--forced)
 		FORCE_CREATE=true
+		shift
+		;;
+
+		--subj)
+		OPENSSL_SUBJ="$2"
+		if [ -z "${OPENSSL_SUBJ}" ]; then
+			echo "Invalid subj"
+			exit
+		fi
+		SET_USER_SUBJ=true
+		shift
 		shift
 		;;
 
@@ -236,13 +257,16 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 		openssl req \
 	          -new -key "root-ca.key" \
 	          -out "root-ca.csr" -sha256 \
-	          -subj '/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion SFIG'
+	          -subj '${OPENSSL_SUBJ}'
 
 	    # generate the ca root certificate
 	    openssl x509 -req  -days 3650  -in "root-ca.csr" \
 	               -signkey "root-ca.key" -sha256 -out "root-ca.crt" \
 	               -extfile "${TEMPLATE_DIR}/root-ca.cnf" -extensions \
 	               root_ca
+	    if [ "${SET_USER_SUBJ}" == true ]; then
+	    	echo "${OPENSSL_SUBJ}" > "${TEMPLATE_DIR}/subj"
+	    fi
 	fi
 
 	if [ -z "${DOMAIN_NAME}" ]; then
@@ -273,7 +297,7 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 
 	# generate csr file
 	openssl req -new -key "${DOMAIN_NAME}.key" -out "site.csr" -sha256 \
-          -subj '/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=${DOMAIN_NAME}'
+          -subj '${OPENSSL_SUBJ} ${DOMAIN_NAME}'
 
     SITE_CNF_FILE_TEMPLATE=$(cat "${TEMPLATE_DIR}"/site.cnf)
     SITE_CNF_FILE_CONTENT=${SITE_CNF_FILE_TEMPLATE/__DOMAIN_NAME__/${DOMAIN_NAME}}
