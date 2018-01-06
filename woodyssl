@@ -33,6 +33,8 @@ usage: ${COMMAND_NAME} [OPTIONS]
           --ca        set the folder of root certificate. The name of certificate files should be 
           			  root-ca.crt and root-ca.key
        -i --import    import root ca given by --ca
+       -e --export    export certificate. if -d is set, then export the certificate of the specific domain,
+                      otherwise, export the root ca certificate 
        -f --forced.   used with -c, create the certificate even if the domain already exists
        -r --rm        remove the domain certificate
        -l --list      list all domains maintained by this tool
@@ -40,13 +42,24 @@ usage: ${COMMAND_NAME} [OPTIONS]
 	exit
 }
 
+function set_domain_operation {
+	if [ -z "${DOMAIN_OPERATION}" ]; then
+		DOMAIN_OPERATION="$1"
+	else
+		echo "Conflict operation flag"
+		echo ""
+		show_help_info
+		exit
+	fi
+}
+
 DOMAIN_NAME=
 DOMAIN_OPERATION=
-CLEAN_ALL=
 FORCE_CREATE=
 EXTERNAL_CA=
 DEFAULT_CA_DIR="${CA_DIR}"
-
+EXPORT_DIR=
+REQURE_DOMAIN_NAME=
 # extract param
 while [ $# -gt 0 ]
 do
@@ -67,38 +80,25 @@ do
 		;;
 
 		-c|--create)
-		if [ -z "${DOMAIN_OPERATION}" ]; then
-			DOMAIN_OPERATION="create"
-		else
-			echo "conflict flag"
-			echo ""
-			show_help_info
-			exit
-		fi
+		set_domain_operation "create"
 		shift
 		;;
 
 		-r|--rm)
-		if [ -z "${DOMAIN_OPERATION}" ]; then
-			DOMAIN_OPERATION="rm"
-		else
-			echo "conflict flag"
-			echo ""
-			show_help_info
-			exit
-		fi
+		set_domain_operation "rm"
+		REQURE_DOMAIN_NAME=true
 		shift
 		;;
 
 		--clean)
-		CLEAN_ALL=true
+		set_domain_operation "clean"
 		shift
 		;;
 
 		-l|--list)
 		if [ -d "${CERT_DIR}" ]; then
 			cd "${CERT_DIR}"
-			ls -1 */
+			ls -1
 		else
 			echo "No certificate found"
 		fi
@@ -130,12 +130,23 @@ do
 		;;
 
 		-i|--import)
-		DOMAIN_OPERATION="import"
+		set_domain_operation "import"
+		shift
+		;;
+
+		-e|--export)
+		set_domain_operation "export"
+		EXPORT_DIR=$(readlink -f "$2")
+		if [ ! -d "${EXPORT_DIR}" ]; then
+			echo "Export destination folder ${EXPORT_DIR} not exists"
+			exit
+		fi
+		shift
 		shift
 		;;
 
 		*)
-			echo "Unrecognized command"
+			echo "Unrecognized flag ${key}"
 			echo "Use ${COMMAND_NAME} -h to show help informations"
 			echo ""
 			show_help_info
@@ -144,47 +155,49 @@ do
 	esac
 done
 
-if [ !  -e "${ROOT_DIR}" ]; then
+if [ "${DOMAIN_OPERATION}" == "clean" ]; then
+	if [ -d "${ROOT_DIR}" ]; then
+		rm -rf "${ROOT_DIR}"
+	fi
+	exit
+fi
+
+if [ ! -d "${ROOT_DIR}" ]; then
 	echo "Create ssl configs container at ${ROOT_DIR}."
 	mkdir "${ROOT_DIR}"
 fi
 cd "${ROOT_DIR}"
 
-if [ "$CLEAN_ALL" == "true" ]; then
-	cd ..
-	rm -rf "${ROOT_DIR}"
-	exit
+if [ ! -d "${CERT_DIR}" ]; then
+	echo "Create certificate diretory at ${CERT_DIR}."
+	mkdir "${CERT_DIR}"
 fi
 
-if [ "${EXTERNAL_CA}" == true ] && [ "${DOMAIN_OPERATION}" == "import" ] && [ "${CA_DIR}" != "${DEFAULT_CA_DIR}" ] ; then
-	cp "${CA_DIR}"/root-ca.key "${DEFAULT_CA_DIR}"/
-	cp "${CA_DIR}"/root-ca.crt "${DEFAULT_CA_DIR}"/
-	echo "done importing external CA"
-	exit
-elif [ "${DOMAIN_OPERATION}" == "import" ] && [ ! "${EXTERNAL_CA}" == true ]; then
-	echo "Cannot import without ca"
-	echo ""
-	show_help_info
-	exit
-elif [ "${CA_DIR}" == "${DEFAULT_CA_DIR}" ]; then
-	echo "The ca folder to be imported is the default folder, ignored"
-	exit
-fi
-
-if [ -z "${DOMAIN_NAME}" ]; then
+if [ "${REQURE_DOMAIN_NAME}" == true ] && [ -z "${DOMAIN_NAME}" ]; then
 	echo "Domain name not set"
 	echo ""
 	show_help_info
 	exit
 fi
 
-if [ ! -d "${CERT_DIR}" ]; then
-	echo "Create certificate diretory at ${CERT_DIR}."
-	mkdir "${CERT_DIR}"
-fi
-cd "${CERT_DIR}"
 
-if [ "${DOMAIN_OPERATION}" == "rm" ]; then
+if [ "${DOMAIN_OPERATION}" == "import" ]; then
+	if [ "${EXTERNAL_CA}" == true ] && [ "${CA_DIR}" != "${DEFAULT_CA_DIR}" ] ; then
+		cp "${CA_DIR}"/root-ca.key "${DEFAULT_CA_DIR}"/
+		cp "${CA_DIR}"/root-ca.crt "${DEFAULT_CA_DIR}"/
+		echo "done importing external CA"
+		exit
+	elif [ "${DOMAIN_OPERATION}" == "import" ] && [ ! "${EXTERNAL_CA}" == true ]; then
+		echo "Cannot import without ca"
+		echo ""
+		show_help_info
+		exit
+	elif [ "${CA_DIR}" == "${DEFAULT_CA_DIR}" ]; then
+		echo "The ca folder to be imported is the default folder, ignored"
+		exit
+	fi
+elif [ "${DOMAIN_OPERATION}" == "rm" ]; then
+	cd "${CERT_DIR}"
 	if [ -d "./${DOMAIN_NAME}" ]; then
 		rm -rf ./"${DOMAIN_NAME}"
 		echo "Certificate of ${DOMAIN_NAME} is removed"
@@ -192,6 +205,19 @@ if [ "${DOMAIN_OPERATION}" == "rm" ]; then
 		echo "Certificate for ${DOMAIN_NAME} not found"
 	fi
 	exit
+elif [ "${DOMAIN_OPERATION}" == "export" ]; then
+	cd "${CERT_DIR}"
+	if [ -z "${DOMAIN_NAME}" ]; then
+		# export root
+		cp "${CA_DIR}"/root-ca.crt "${EXPORT_DIR}"/
+		cp "${CA_DIR}"/root-ca.key "${EXPORT_DIR}"/
+	elif [ -d "./${DOMAIN_NAME}" ]; then
+		cp "./${DOMAIN_NAME}/${DOMAIN_NAME}.key" "${EXPORT_DIR}"/
+		cp "./${DOMAIN_NAME}/${DOMAIN_NAME}.crt" "${EXPORT_DIR}"/
+	else
+		echo "Certificate of ${DOMAIN_NAME} not found"
+		exit
+	fi
 
 elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 
@@ -217,6 +243,12 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 	               -signkey "root-ca.key" -sha256 -out "root-ca.crt" \
 	               -extfile "${TEMPLATE_DIR}/root-ca.cnf" -extensions \
 	               root_ca
+	fi
+
+	if [ -z "${DOMAIN_NAME}" ]; then
+		echo "Success creating root certificate"
+		echo "done"
+		exit
 	fi
 
 	cd "${CERT_DIR}"
@@ -260,6 +292,10 @@ ${SITE_CNF_FILE_CONTENT}
 
   	echo "Success creating certificate for ${DOMAIN_NAME}"
   	echo "The certificate is stored is $(pwd)"
+else
+	echo "Select a operation"
+	echo ""
+	show_help_info
 fi
 		
 
