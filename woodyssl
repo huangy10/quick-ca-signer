@@ -203,6 +203,9 @@ fi
 
 
 if [ "${DOMAIN_OPERATION}" == "import" ]; then
+	if [ ! -d "${DEFAULT_CA_DIR}" ]; then
+		mkdir "${DEFAULT_CA_DIR}"
+	fi
 	if [ "${EXTERNAL_CA}" == true ] && [ "${CA_DIR}" != "${DEFAULT_CA_DIR}" ] ; then
 		cp "${CA_DIR}"/root-ca.key "${DEFAULT_CA_DIR}"/
 		cp "${CA_DIR}"/root-ca.crt "${DEFAULT_CA_DIR}"/

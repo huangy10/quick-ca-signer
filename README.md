@@ -13,7 +13,8 @@ sudo ./install.sh -l
 或者直接运行
 
 ```Bash
-bash <(curl https://github.com/huangy10/quick-ca-signer/raw/master/install.sh)
+sudo su
+bash <(curl -sL https://github.com/huangy10/quick-ca-signer/raw/master/install.sh)
 ```
 
 这个命令会自动拉取相关代码并完成安装。
