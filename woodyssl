@@ -24,7 +24,7 @@ fi
 TEMPLATE_DIR="${INSTALL_DIR}"/templates
 
 function show_help_info {
-	echo -e '${COMMAND_NAME}: SSL certificate manager
+	echo -e "${COMMAND_NAME}: SSL certificate manager
 usage: ${COMMAND_NAME} [OPTIONS]
        -h --help      show help informations
        -d --domain    domain name to manage
@@ -38,9 +38,9 @@ usage: ${COMMAND_NAME} [OPTIONS]
        -f --forced.   used with -c, create the certificate even if the domain already exists
        -r --rm        remove the domain certificate
        -l --list      list all domains maintained by this tool
-          --subj      set subj info for csr file. In following format: "/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion Club"
+          --subj      set subj info for csr file. In following format: \"/C=CN/ST=Beijing/L=Beijing/O=Tsinghua/CN=Vlion Club\"
                       this settings will be saved and applied in the following commands.
-       -v --version   show version'
+       -v --version   show version"
 	exit
 }
 
@@ -257,7 +257,7 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 		openssl req \
 	          -new -key "root-ca.key" \
 	          -out "root-ca.csr" -sha256 \
-	          -subj '${OPENSSL_SUBJ}'
+	          -subj "${OPENSSL_SUBJ}"
 
 	    # generate the ca root certificate
 	    openssl x509 -req  -days 3650  -in "root-ca.csr" \
@@ -297,7 +297,7 @@ elif [ "${DOMAIN_OPERATION}" == "create" ]; then
 
 	# generate csr file
 	openssl req -new -key "${DOMAIN_NAME}.key" -out "site.csr" -sha256 \
-          -subj '${OPENSSL_SUBJ} ${DOMAIN_NAME}'
+          -subj "${OPENSSL_SUBJ} ${DOMAIN_NAME}"
 
     SITE_CNF_FILE_TEMPLATE=$(cat "${TEMPLATE_DIR}"/site.cnf)
     SITE_CNF_FILE_CONTENT=${SITE_CNF_FILE_TEMPLATE/__DOMAIN_NAME__/${DOMAIN_NAME}}
