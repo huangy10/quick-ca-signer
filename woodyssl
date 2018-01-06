@@ -30,7 +30,10 @@ usage: ${COMMAND_NAME} [OPTIONS]
        -d --domain    domain name to manage
        -c --create    create if the domain given by -d does not exists
           --clean     clean everything
-       -f --forced.   
+          --ca        set the folder of root certificate. The name of certificate files should be 
+          			  root-ca.crt and root-ca.key
+       -i --import    import root ca given by --ca
+       -f --forced.   used with -c, create the certificate even if the domain already exists
        -r --rm        remove the domain certificate
        -l --list      list all domains maintained by this tool
        -v --version   show version"
@@ -41,6 +44,8 @@ DOMAIN_NAME=
 DOMAIN_OPERATION=
 CLEAN_ALL=
 FORCE_CREATE=
+EXTERNAL_CA=
+DEFAULT_CA_DIR="${CA_DIR}"
 
 # extract param
 while [ $# -gt 0 ]
@@ -111,6 +116,24 @@ do
 		exit
 		;;
 
+		--ca)
+		CA_DIR=$(readlink -f "$2")
+		if [ ! -d "${CA_DIR}" ] || [ ! -f "${CA_DIR}"/root-ca.crt ] || [ ! -f "${CA_DIR}"/root-ca.key ]; then
+			echo "Root certificate not found in ${CA_DIR}"
+			echo "Make sure the folder exists, and the certificate is named as root-ca.key and root-ca.crt"
+			echo ""
+			exit
+		fi
+		EXTERNAL_CA=true
+		shift 
+		shift
+		;;
+
+		-i|--import)
+		DOMAIN_OPERATION="import"
+		shift
+		;;
+
 		*)
 			echo "Unrecognized command"
 			echo "Use ${COMMAND_NAME} -h to show help informations"
@@ -130,6 +153,21 @@ cd "${ROOT_DIR}"
 if [ "$CLEAN_ALL" == "true" ]; then
 	cd ..
 	rm -rf "${ROOT_DIR}"
+	exit
+fi
+
+if [ "${EXTERNAL_CA}" == true ] && [ "${DOMAIN_OPERATION}" == "import" ] && [ "${CA_DIR}" != "${DEFAULT_CA_DIR}" ] ; then
+	cp "${CA_DIR}"/root-ca.key "${DEFAULT_CA_DIR}"/
+	cp "${CA_DIR}"/root-ca.crt "${DEFAULT_CA_DIR}"/
+	echo "done importing external CA"
+	exit
+elif [ "${DOMAIN_OPERATION}" == "import" ] && [ ! "${EXTERNAL_CA}" == true ]; then
+	echo "Cannot import without ca"
+	echo ""
+	show_help_info
+	exit
+elif [ "${CA_DIR}" == "${DEFAULT_CA_DIR}" ]; then
+	echo "The ca folder to be imported is the default folder, ignored"
 	exit
 fi
 
