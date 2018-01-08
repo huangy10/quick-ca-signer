@@ -49,6 +49,7 @@ else
 	fi
 fi
 cd /var/woodyssl
+chmod -R a+r /var/woodyssl/templates
 
 rm -rf ./README.md ./.git ./.gitignore
 if [ -L "/bin/woodyssl" ]; then
